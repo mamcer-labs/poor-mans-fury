@@ -1,0 +1,10 @@
+server:
+  dev:
+    enabled: false
+  standalone:
+    enabled: true
+  dataStorage:
+    size: 5Gi
+ui:
+  enabled: true
+  serviceType: ClusterIP

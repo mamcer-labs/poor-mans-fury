@@ -1,0 +1,58 @@
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: gostalgia-api
+  namespace: fury-dev
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: gostalgia-api
+  namespace: fury-dev
+  labels:
+    fury/app: gostalgia-api
+    fury/scope: dev
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: gostalgia-api
+  template:
+    metadata:
+      labels:
+        app: gostalgia-api
+      annotations:
+        vault.hashicorp.com/agent-inject: "true"
+        vault.hashicorp.com/role: "gostalgia-dev"
+        vault.hashicorp.com/agent-inject-secret-config: "fury/data/apps/gostalgia/dev/config"
+        vault.hashicorp.com/agent-inject-template-config: |
+          {{- with secret "fury/data/apps/gostalgia/dev/config" -}}
+          export DB_HOST="{{ .Data.data.DB_HOST }}"
+          export DB_PORT="{{ .Data.data.DB_PORT }}"
+          export DB_USER="{{ .Data.data.DB_USER }}"
+          export DB_PASSWORD="{{ .Data.data.DB_PASSWORD }}"
+          export DB_NAME="{{ .Data.data.DB_NAME }}"
+          export NOSTALGIA_CONNECTION_STRING="{{ .Data.data.NOSTALGIA_CONNECTION_STRING }}"
+          {{- end -}}
+    spec:
+      serviceAccountName: gostalgia-api
+      imagePullSecrets:
+        - name: ghcr-pull-secret
+      containers:
+        - name: gostalgia-api
+          image: ghcr.io/mamcer-labs/gostalgia-api:latest
+          command: ["sh", "-c", "source /vault/secrets/config && exec /app/gostalgia-api"]
+          ports:
+            - containerPort: 8080
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: gostalgia-api
+  namespace: fury-dev
+spec:
+  selector:
+    app: gostalgia-api
+  ports:
+    - port: 8080
+      targetPort: 8080

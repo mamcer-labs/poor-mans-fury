@@ -1,0 +1,10 @@
+deployment:
+  replicas: 1
+service:
+  type: LoadBalancer
+ingressRoute:
+  dashboard:
+    enabled: true
+additionalArguments:
+  - "--api.insecure=true"
+  - "--log.level=INFO"
