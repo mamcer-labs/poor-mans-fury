@@ -1,0 +1,16 @@
+grafana:
+  enabled: true
+  adminPassword: "grafana123"   # cambiar despues, no dejar el default
+  ingress:
+    enabled: false
+prometheus:
+  prometheusSpec:
+    retention: 15d
+    storageSpec:
+      volumeClaimTemplate:
+        spec:
+          resources:
+            requests:
+              storage: 20Gi
+alertmanager:
+  enabled: true
