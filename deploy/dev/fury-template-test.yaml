@@ -1,0 +1,58 @@
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: fury-template-test
+  namespace: fury-dev
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: fury-template-test
+  namespace: fury-dev
+  labels:
+    fury/app: fury-template-test
+    fury/scope: dev
+    backstage.io/kubernetes-id: fury-template-test
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: fury-template-test
+  template:
+    metadata:
+      labels:
+        app: fury-template-test
+        backstage.io/kubernetes-id: fury-template-test
+      annotations:
+        vault.hashicorp.com/agent-inject: "true"
+        vault.hashicorp.com/role: "fury-template-test-dev"
+        vault.hashicorp.com/agent-inject-secret-config: "fury/data/apps/fury-template-test/dev/config"
+        vault.hashicorp.com/agent-inject-template-config: |
+          {{- with secret "fury/data/apps/fury-template-test/dev/config" -}}
+          # TODO: agregar los export reales de esta app, ver README del repo
+          {{- end -}}
+    spec:
+      serviceAccountName: fury-template-test
+      imagePullSecrets:
+        - name: ghcr-pull-secret
+      containers:
+        - name: fury-template-test
+          image: ghcr.io/mamcer-labs/fury-template-test:latest
+          command: ["sh", "-c", "source /vault/secrets/config && exec /app/app-bin"]
+          ports:
+            - containerPort: 8080
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: fury-template-test
+  namespace: fury-dev
+  labels:
+    app: fury-template-test
+    backstage.io/kubernetes-id: fury-template-test
+spec:
+  selector:
+    app: fury-template-test
+  ports:
+    - port: 8080
+      targetPort: 8080
