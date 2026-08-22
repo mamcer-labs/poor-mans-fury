@@ -56,3 +56,18 @@ spec:
   ports:
     - port: 8080
       targetPort: 8080
+---
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: cookbook
+  namespace: fury-dev
+  labels:
+    release: monitoring
+spec:
+  selector:
+    matchLabels:
+      app: cookbook
+  endpoints:
+    - targetPort: 8080
+      path: /metrics
