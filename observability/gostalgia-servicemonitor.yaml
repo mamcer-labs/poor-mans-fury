@@ -1,0 +1,15 @@
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: gostalgia-api
+  namespace: fury-dev
+  labels:
+    release: monitoring
+spec:
+  selector:
+    matchLabels:
+      app: gostalgia-api
+  endpoints:
+    - targetPort: 8080
+      path: /v1/metrics
+      interval: 30s

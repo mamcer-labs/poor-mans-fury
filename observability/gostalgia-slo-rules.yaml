@@ -1,0 +1,59 @@
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: gostalgia-api-slo
+  namespace: fury-dev
+  labels:
+    release: monitoring
+spec:
+  groups:
+    - name: gostalgia-api-latency-slo
+      rules:
+        - record: gostalgia:http_success_ratio:ratio_rate5m
+          expr: >-
+            sum(rate(gostalgia_http_request_duration_seconds_bucket{le="0.2"}[5m]))
+            /
+            sum(rate(gostalgia_http_request_duration_seconds_count[5m]))
+        - record: gostalgia:http_success_ratio:ratio_rate30m
+          expr: >-
+            sum(rate(gostalgia_http_request_duration_seconds_bucket{le="0.2"}[30m]))
+            /
+            sum(rate(gostalgia_http_request_duration_seconds_count[30m]))
+        - record: gostalgia:http_success_ratio:ratio_rate1h
+          expr: >-
+            sum(rate(gostalgia_http_request_duration_seconds_bucket{le="0.2"}[1h]))
+            /
+            sum(rate(gostalgia_http_request_duration_seconds_count[1h]))
+        - record: gostalgia:http_success_ratio:ratio_rate6h
+          expr: >-
+            sum(rate(gostalgia_http_request_duration_seconds_bucket{le="0.2"}[6h]))
+            /
+            sum(rate(gostalgia_http_request_duration_seconds_count[6h]))
+        - alert: GostalgiaLatencySLOFastBurn
+          expr: >-
+            (
+              (1 - gostalgia:http_success_ratio:ratio_rate1h) / 0.01 > 14.4
+              and
+              (1 - gostalgia:http_success_ratio:ratio_rate5m) / 0.01 > 14.4
+            )
+          for: 2m
+          labels:
+            severity: page
+            slo: gostalgia-api-latency
+          annotations:
+            summary: "gostalgia-api is burning its latency error budget fast (>2% in 1h)"
+            description: "More than 2% of the monthly error budget is being spent in 1 hour. At this rate the 30-day budget runs out in less than 2 days."
+        - alert: GostalgiaLatencySLOSlowBurn
+          expr: >-
+            (
+              (1 - gostalgia:http_success_ratio:ratio_rate6h) / 0.01 > 6
+              and
+              (1 - gostalgia:http_success_ratio:ratio_rate30m) / 0.01 > 6
+            )
+          for: 15m
+          labels:
+            severity: ticket
+            slo: gostalgia-api-latency
+          annotations:
+            summary: "gostalgia-api is steadily burning its latency error budget (>5% in 6h)"
+            description: "More than 5% of the monthly error budget is being spent in 6 hours. At this rate the budget runs out in ~5 days."
