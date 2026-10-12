@@ -28,6 +28,7 @@ Apps are deployed per **scope** into their own namespaces: `fury-dev`,
 ## Repository layout
 
 ```
+backstage/rbac.yaml          read-only ServiceAccount for Backstage's Kubernetes view
 cli/pmf.sh                   pmf CLI: deploy, logs, status, rollback, scope list, config get
 deploy/dev/                  Kubernetes manifests for the apps running in fury-dev
   gostalgia-api.yaml           Go API: Deployment + Service, config injected from Vault
@@ -35,15 +36,31 @@ deploy/dev/                  Kubernetes manifests for the apps running in fury-d
 observability/
   prometheus-values.yaml       Helm values for kube-prometheus-stack (Prometheus, Grafana, Alertmanager)
   loki-values.yaml             Helm values for Loki (single binary, filesystem storage)
+  tempo-values.yaml            Helm values for Tempo (local trace storage)
+  grafana-ingress.yaml         Traefik IngressRoute for Grafana
+  gostalgia-servicemonitor.yaml  ServiceMonitor that scrapes gostalgia-api's metrics
+  gostalgia-slo-rules.yaml     latency SLO: recording rules + multi-window burn-rate alerts
+  dashboards/gostalgia-red.yaml  RED dashboard, loaded by Grafana's dashboard sidecar
 traefik/values.yaml          Helm values for Traefik
 vault/
   values.yaml                  Helm values for Vault (standalone, UI enabled)
   ingress.yaml                 Traefik IngressRoute for the Vault UI
-  policies/gostalgia-dev.hcl   read-only policy for gostalgia's dev config
+  policies/                    one read-only policy per app and scope
 ```
 
 Not every component has its configuration here yet; some were installed
 directly with Helm while building the platform (see the write-up below).
+
+## Conventions
+
+- Every manifest applied to the cluster lives in this repo, organized by
+  tool (`vault/`, `traefik/`, `observability/`, `deploy/<scope>/`).
+- Traefik CRDs use `apiVersion: traefik.io/v1alpha1`.
+- Scope namespaces are labeled `fury/scope=<dev|staging|prod>`.
+- App config lives in Vault at `fury/apps/<app>/<scope>/config`, readable
+  only through the policy `vault/policies/<app>-<scope>.hcl`.
+- `ServiceMonitor`s and `PrometheusRule`s carry the label
+  `release: monitoring` so the Prometheus operator picks them up.
 
 ## The `pmf` CLI
 
