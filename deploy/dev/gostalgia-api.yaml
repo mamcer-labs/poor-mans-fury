@@ -12,6 +12,7 @@ metadata:
   labels:
     fury/app: gostalgia-api
     fury/scope: dev
+    backstage.io/kubernetes-id: gostalgia-api
 spec:
   replicas: 1
   selector:
@@ -21,6 +22,7 @@ spec:
     metadata:
       labels:
         app: gostalgia-api
+        backstage.io/kubernetes-id: gostalgia-api
       annotations:
         vault.hashicorp.com/agent-inject: "true"
         vault.hashicorp.com/role: "gostalgia-dev"
@@ -50,6 +52,9 @@ kind: Service
 metadata:
   name: gostalgia-api
   namespace: fury-dev
+  labels:
+    app: gostalgia-api
+    backstage.io/kubernetes-id: gostalgia-api
 spec:
   selector:
     app: gostalgia-api
