@@ -98,3 +98,7 @@ series on my blog (in Spanish):
 This is a homelab: single node, no high availability, and some deliberate
 shortcuts (for example, Vault is unsealed manually after a restart). The
 trade-offs are discussed in the series.
+
+## License
+
+[MIT](LICENSE)
