@@ -1,0 +1,121 @@
+# Navidrome: self-hosted music server for the household (LAN only).
+# Not a Fury app: it lives in its own namespace, outside the scopes,
+# and doesn't go through pmf, Backstage or CI.
+#
+# The music is read straight from the backup disk, read-only. Navidrome
+# only writes its own state (SQLite DB + artwork/transcoding cache) to the
+# PVC on the system disk.
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: media
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: navidrome-data
+  namespace: media
+spec:
+  accessModes:
+    - ReadWriteOnce
+  storageClassName: local-path
+  resources:
+    requests:
+      storage: 2Gi
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: navidrome
+  namespace: media
+  labels:
+    app: navidrome
+spec:
+  replicas: 1
+  strategy:
+    type: Recreate          # SQLite + RWO PVC: never two pods at once
+  selector:
+    matchLabels:
+      app: navidrome
+  template:
+    metadata:
+      labels:
+        app: navidrome
+    spec:
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 65534    # nobody: not the owner of the music files
+        runAsGroup: 65534
+      containers:
+        - name: navidrome
+          image: deluan/navidrome:0.64.2
+          ports:
+            - name: http
+              containerPort: 4533
+          env:
+            - name: ND_MUSICFOLDER
+              value: /music
+            - name: ND_DATAFOLDER
+              value: /data
+            - name: ND_SCANSCHEDULE
+              value: "1h"
+            - name: ND_LOGLEVEL
+              value: info
+          volumeMounts:
+            - name: music
+              mountPath: /music
+              readOnly: true
+            - name: data
+              mountPath: /data
+          readinessProbe:
+            httpGet:
+              path: /ping
+              port: http
+          resources:
+            requests:
+              cpu: 100m
+              memory: 128Mi
+            limits:
+              memory: 512Mi   # transcoding spikes; full library scans
+      volumes:
+        - name: music
+          hostPath:
+            # LUKS disk, unlocked by udisks on desktop login.
+            # type: Directory makes the pod wait in ContainerCreating
+            # until the disk is mounted, instead of scanning an empty dir.
+            path: /run/media/mario/homunculus/nostalgia/home/music
+            type: Directory
+        - name: data
+          persistentVolumeClaim:
+            claimName: navidrome-data
+---
+# LoadBalancer (K3s servicelb) so phone apps reach 192.168.100.100:4533:
+# Android and iOS don't read /etc/hosts, so *.fury.local won't resolve there.
+apiVersion: v1
+kind: Service
+metadata:
+  name: navidrome
+  namespace: media
+spec:
+  type: LoadBalancer
+  selector:
+    app: navidrome
+  ports:
+    - name: http
+      port: 4533
+      targetPort: http
+---
+apiVersion: traefik.io/v1alpha1
+kind: IngressRoute
+metadata:
+  name: navidrome
+  namespace: media
+spec:
+  entryPoints:
+    - web
+  routes:
+    - match: Host(`music.fury.local`)
+      kind: Rule
+      services:
+        - name: navidrome
+          port: 4533

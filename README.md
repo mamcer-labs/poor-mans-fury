@@ -33,6 +33,7 @@ cli/pmf.sh                   pmf CLI: deploy, logs, status, rollback, scope list
 deploy/dev/                  Kubernetes manifests for the apps running in fury-dev
   gostalgia-api.yaml           Go API: Deployment + Service, config injected from Vault
   cookbook.yaml                second app, with a ServiceMonitor for Prometheus
+media/navidrome.yaml         Navidrome music server (LAN only), outside the Fury scopes
 observability/
   prometheus-values.yaml       Helm values for kube-prometheus-stack (Prometheus, Grafana, Alertmanager)
   loki-values.yaml             Helm values for Loki (single binary, filesystem storage)
