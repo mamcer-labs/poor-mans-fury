@@ -83,7 +83,7 @@ spec:
             # LUKS disk, unlocked by udisks on desktop login.
             # type: Directory makes the pod wait in ContainerCreating
             # until the disk is mounted, instead of scanning an empty dir.
-            path: /run/media/mario/homunculus/nostalgia/home/music
+            path: /run/media/mario/homunculus/music
             type: Directory
         - name: data
           persistentVolumeClaim:
