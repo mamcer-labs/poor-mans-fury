@@ -28,12 +28,14 @@ Apps are deployed per **scope** into their own namespaces: `fury-dev`,
 ## Repository layout
 
 ```
+apparmor/cri-containerd.apparmor.d  host AppArmor profile for containers (see Known issues)
 backstage/rbac.yaml          read-only ServiceAccount for Backstage's Kubernetes view
 cli/pmf.sh                   pmf CLI: deploy, logs, status, rollback, scope list, config get
 deploy/dev/                  Kubernetes manifests for the apps running in fury-dev
   gostalgia-api.yaml           Go API: Deployment + Service, config injected from Vault
   cookbook.yaml                second app, with a ServiceMonitor for Prometheus
 media/navidrome.yaml         Navidrome music server (LAN only), outside the Fury scopes
+media/immich.yaml            Immich photo and video library (LAN only), outside the Fury scopes
 observability/
   prometheus-values.yaml       Helm values for kube-prometheus-stack (Prometheus, Grafana, Alertmanager)
   loki-values.yaml             Helm values for Loki (single binary, filesystem storage)
@@ -62,6 +64,43 @@ directly with Helm while building the platform (see the write-up below).
   only through the policy `vault/policies/<app>-<scope>.hcl`.
 - `ServiceMonitor`s and `PrometheusRule`s carry the label
   `release: monitoring` so the Prometheus operator picks them up.
+
+## Known issues
+
+**Processes in a container can't signal each other (Ubuntu 26.04).**
+- Ubuntu sets `kernel.apparmor_restrict_unprivileged_unconfined=1`. Because of
+  it, runc's switch into containerd's default AppArmor profile becomes a stack,
+  and container processes are labeled `cri-containerd.apparmor.d//&unconfined`.
+- The default profile only allows signals and ptrace between processes labeled
+  `cri-containerd.apparmor.d`, so the kernel denies them
+  (`apparmor="DENIED" operation="signal"`).
+- Effects: Postgres can't create a database ("could not signal for
+  checkpoint"), `gosu` spins at 100% CPU, and Go programs (Vault, Navidrome)
+  lose their SIGURG preemption signals.
+- Upstream: [containerd#14485](https://github.com/containerd/containerd/issues/14485),
+  [k3s#13625](https://github.com/k3s-io/k3s/issues/13625).
+
+Workaround (temporary): `apparmor/cri-containerd.apparmor.d` is containerd's
+profile with the stacked label added to those two rules. containerd keeps a
+profile that is already loaded under that name, and `/etc/apparmor.d` is
+loaded at boot before k3s. Install it with:
+
+```bash
+sudo install -m 0644 apparmor/cri-containerd.apparmor.d /etc/apparmor.d/
+sudo apparmor_parser -r -W /etc/apparmor.d/cri-containerd.apparmor.d
+```
+
+The reload applies to running containers; no pod restarts. To check it:
+
+```bash
+journalctl -k --since "10 min ago" | grep 'apparmor="DENIED" operation="signal"'
+```
+
+The output must be empty. Remove the file and reboot when the pinned k3s
+ships containerd with the fix
+([containerd#14487](https://github.com/containerd/containerd/pull/14487)). If
+k3s upgrades containerd before that, diff the file against the new
+`contrib/apparmor/template.go`.
 
 ## The `pmf` CLI
 
