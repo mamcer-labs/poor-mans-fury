@@ -117,7 +117,7 @@ spec:
               cpu: 100m
               memory: 256Mi
             limits:
-              memory: 1Gi
+              memory: 4Gi         # building the vector indexes (clip, faces) OOMed at 1Gi
       volumes:
         - name: data
           persistentVolumeClaim:
