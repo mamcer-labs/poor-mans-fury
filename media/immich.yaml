@@ -312,11 +312,16 @@ spec:
               cpu: "2"          # thumbnail and video jobs; same reason as ML
               memory: 3Gi
       volumes:
+        # Uploads, thumbs, encoded video and Immich's own DB dumps live on
+        # homunculus so the disk backups cover them. Postgres stays on the
+        # NVMe (live DB files aren't rsync-safe; the dumps are).
         - name: data
-          persistentVolumeClaim:
-            claimName: immich-data
+          hostPath:
+            path: /run/media/mario/homunculus/immich
+            type: Directory
         # LUKS disk, unlocked by udisks on desktop login. type: Directory
-        # keeps the pod in ContainerCreating until the disk is mounted.
+        # keeps the pod in ContainerCreating until the disk is mounted,
+        # so nothing is ever written to the empty mountpoint on the NVMe.
         - name: picture
           hostPath:
             path: /run/media/mario/homunculus/picture
