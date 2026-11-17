@@ -1,0 +1,217 @@
+# sist2: full-text search over homunculus/doc (LAN only, single user).
+# Like Navidrome and Immich, not a Fury app: it lives in the `media`
+# namespace (declared in navidrome.yaml) and doesn't go through pmf,
+# Backstage or CI.
+#
+# Only doc/ is indexed: photos and videos are Immich's, music is
+# Navidrome's, and sist2 doesn't look inside .iso images (it only opens
+# tar/zip/rar/arc/warc/7z), so iso/ would only add 163 file names.
+#
+# Two workloads share one PVC with the index (SQLite, no Elasticsearch):
+# - CronJob sist2-scan: weekly incremental scan + sqlite-index. The first
+#   full scan is started by hand (see below).
+# - Deployment sist2: the web UI. It reads the SQLite index live, so new
+#   documents show up after a scan without restarting it.
+#
+# The image ships the binary in /root (mode 700), so it can't run as
+# nobody like Navidrome: it runs as root with every capability dropped,
+# and doc/ is mounted read-only.
+#
+# The web login is not in git. Create it once before applying:
+#   kubectl -n media create secret generic sist2-auth \
+#     --from-literal=auth="mario:$(openssl rand -hex 16)"
+# Read it back with:
+#   kubectl -n media get secret sist2-auth -o jsonpath='{.data.auth}' | base64 -d
+#
+# First full scan (15-45 min), then the UI starts on its own:
+#   kubectl -n media create job sist2-scan-first --from=cronjob/sist2-scan
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: sist2-data
+  namespace: media
+spec:
+  accessModes:
+    - ReadWriteOnce         # both pods run on the single node, so they can share it
+  storageClassName: local-path
+  resources:
+    requests:
+      storage: 20Gi         # measured ~3-11 GB for doc/; local-path doesn't enforce it
+---
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: sist2-scan
+  namespace: media
+spec:
+  schedule: "0 3 * * 0"     # Sundays 03:00
+  timeZone: America/Argentina/Buenos_Aires
+  concurrencyPolicy: Forbid
+  successfulJobsHistoryLimit: 2
+  failedJobsHistoryLimit: 2
+  jobTemplate:
+    spec:
+      backoffLimit: 1
+      template:
+        metadata:
+          labels:
+            app: sist2-scan
+        spec:
+          restartPolicy: Never
+          securityContext:
+            runAsUser: 0
+            seccompProfile:
+              type: RuntimeDefault
+          containers:
+            - name: scan
+              image: sist2app/sist2:4.2.3
+              command: ["/bin/sh", "-c"]
+              # --incremental is a no-op on the first run (no index yet).
+              # 3 threads, not 4: all four at 100 % push the NUC past 95 C.
+              # The dedup archive holds Claude's file manifests: noise.
+              args:
+                - >-
+                  /root/sist2 scan --incremental --threads 3 --mem-buffer 256
+                  --exclude 'backup/dedup-[0-9-]+\.tar\.xz$'
+                  --output /data/doc.sist2 /doc &&
+                  /root/sist2 sqlite-index --search-index /data/search.sist2 /data/doc.sist2
+              securityContext:
+                allowPrivilegeEscalation: false
+                capabilities:
+                  drop: ["ALL"]
+              volumeMounts:
+                - name: doc
+                  mountPath: /doc
+                  readOnly: true
+                - name: data
+                  mountPath: /data
+              resources:
+                requests:
+                  cpu: 500m
+                  memory: 512Mi
+                limits:
+                  memory: 3Gi   # 450 MiB measured with 4 threads; archives buffer up to 256 MiB each
+          volumes:
+            - name: doc
+              hostPath:
+                # LUKS disk, unlocked by udisks on desktop login. type: Directory
+                # keeps the pod in ContainerCreating until the disk is mounted,
+                # so an empty mountpoint is never scanned (which would wipe the index).
+                path: /run/media/mario/homunculus/doc
+                type: Directory
+            - name: data
+              persistentVolumeClaim:
+                claimName: sist2-data
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: sist2
+  namespace: media
+  labels:
+    app: sist2
+spec:
+  replicas: 1
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app: sist2
+  template:
+    metadata:
+      labels:
+        app: sist2
+    spec:
+      securityContext:
+        runAsUser: 0
+        seccompProfile:
+          type: RuntimeDefault
+      initContainers:
+        # Waits for the first scan to produce the search index.
+        - name: wait-for-index
+          image: sist2app/sist2:4.2.3
+          command: ["/bin/sh", "-c", "until [ -s /data/search.sist2 ]; do sleep 30; done"]
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: ["ALL"]
+          volumeMounts:
+            - name: data
+              mountPath: /data
+      containers:
+        - name: web
+          image: sist2app/sist2:4.2.3
+          args:
+            - web
+            - --bind
+            - 0.0.0.0:4090
+            - --auth
+            - $(SIST2_AUTH)
+            - --search-index
+            - /data/search.sist2
+            - /data/doc.sist2
+          env:
+            - name: SIST2_AUTH
+              valueFrom:
+                secretKeyRef:
+                  name: sist2-auth
+                  key: auth
+          ports:
+            - name: http
+              containerPort: 4090
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: ["ALL"]
+          volumeMounts:
+            - name: doc
+              mountPath: /doc   # the UI serves the original files from here
+              readOnly: true
+            - name: data
+              mountPath: /data
+          readinessProbe:
+            tcpSocket:          # every HTTP path is behind basic auth
+              port: http
+          resources:
+            requests:
+              cpu: 50m
+              memory: 64Mi
+            limits:
+              memory: 512Mi     # 17 MiB measured idle
+      volumes:
+        - name: doc
+          hostPath:
+            path: /run/media/mario/homunculus/doc
+            type: Directory
+        - name: data
+          persistentVolumeClaim:
+            claimName: sist2-data
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: sist2
+  namespace: media
+spec:
+  selector:
+    app: sist2
+  ports:
+    - name: http
+      port: 4090
+      targetPort: http
+---
+apiVersion: traefik.io/v1alpha1
+kind: IngressRoute
+metadata:
+  name: sist2
+  namespace: media
+spec:
+  entryPoints:
+    - web
+  routes:
+    - match: Host(`search.fury.local`)
+      kind: Rule
+      services:
+        - name: sist2
+          port: 4090

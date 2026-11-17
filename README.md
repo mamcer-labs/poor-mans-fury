@@ -36,6 +36,7 @@ deploy/dev/                  Kubernetes manifests for the apps running in fury-d
   cookbook.yaml                second app, with a ServiceMonitor for Prometheus
 media/navidrome.yaml         Navidrome music server (LAN only), outside the Fury scopes
 media/immich.yaml            Immich photo and video library (LAN only), outside the Fury scopes
+media/sist2.yaml             sist2 full-text search over homunculus/doc (LAN only), outside the Fury scopes
 observability/
   prometheus-values.yaml       Helm values for kube-prometheus-stack (Prometheus, Grafana, Alertmanager)
   loki-values.yaml             Helm values for Loki (single binary, filesystem storage)
