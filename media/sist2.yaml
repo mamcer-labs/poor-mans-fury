@@ -212,12 +212,16 @@ spec:
           persistentVolumeClaim:
             claimName: sist2-data
 ---
+# LoadBalancer (K3s servicelb) so phones reach 192.168.100.100:4090, like
+# Immich and Navidrome: Android and iOS don't read /etc/hosts, so
+# *.fury.local won't resolve there.
 apiVersion: v1
 kind: Service
 metadata:
   name: sist2
   namespace: media
 spec:
+  type: LoadBalancer
   selector:
     app: sist2
   ports:
