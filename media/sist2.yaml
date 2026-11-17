@@ -229,7 +229,7 @@ spec:
   entryPoints:
     - web
   routes:
-    - match: Host(`search.fury.local`)
+    - match: Host(`files.fury.local`)
       kind: Rule
       services:
         - name: sist2
