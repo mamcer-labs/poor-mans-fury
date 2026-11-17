@@ -194,7 +194,10 @@ spec:
               cpu: 50m
               memory: 64Mi
             limits:
-              memory: 512Mi     # 17 MiB measured idle
+              # 17 MiB of its own when idle, but the page cache counts against
+              # the limit: at 512Mi only a quarter of the 2.2 GB search.sist2
+              # stayed cached and each search went back to disk (17/11/2026).
+              memory: 3Gi
       volumes:
         - name: doc
           hostPath:
