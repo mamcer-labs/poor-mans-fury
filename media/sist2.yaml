@@ -22,6 +22,11 @@
 #     --from-literal=auth="mario:$(openssl rand -hex 16)"
 # Read it back with:
 #   kubectl -n media get secret sist2-auth -o jsonpath='{.data.auth}' | base64 -d
+# To set your own password instead (no ':' in it; sist2 reads it at start):
+#   read -rsp 'Password: ' P; echo
+#   kubectl -n media create secret generic sist2-auth \
+#     --from-literal=auth="mario:$P" --dry-run=client -o yaml | kubectl apply -f -
+#   unset P; kubectl -n media rollout restart deploy/sist2
 #
 # First full scan (~2 h with one thread), then the UI starts on its own:
 #   kubectl -n media create job sist2-scan-first --from=cronjob/sist2-scan
