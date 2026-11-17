@@ -23,7 +23,7 @@
 # Read it back with:
 #   kubectl -n media get secret sist2-auth -o jsonpath='{.data.auth}' | base64 -d
 #
-# First full scan (15-45 min), then the UI starts on its own:
+# First full scan (~2 h with one thread), then the UI starts on its own:
 #   kubectl -n media create job sist2-scan-first --from=cronjob/sist2-scan
 ---
 apiVersion: v1
@@ -72,12 +72,23 @@ spec:
               # with 2 at 95 C, throttling both times (16/11/2026). Slower, but
               # after the first scan the weekly runs are incremental.
               # The dedup archive holds Claude's file manifests: noise.
+              # Memory (OOM at 3Gi, 16/11/2026): sist2 buffers whole archive
+              # entries in RAM, ignoring --mem-buffer. --archive shallow keeps
+              # it out of archives nested in archives (a 1.7 GB 7z inside an
+              # 8 GB tar.gz), and mail is skipped: the Thunderbird profile
+              # zips in emails/ hold 3.8 and 6.5 GB mboxes, and a .mbox is
+              # split into messages, one of them 756 MB.
+              # A scan killed mid-file leaves rows with NULL json_data, which
+              # make sqlite-index fail (NOT NULL constraint ... name); see
+              # stash/pmf.md ("sist2: deploy en K3s") for the cleanup query.
               args:
                 - >-
                   /root/sist2 scan --incremental --threads 1 --mem-buffer 256
-                  --exclude 'backup/dedup-[0-9-]+\.tar\.xz$'
+                  --archive shallow
+                  --exclude '(backup/dedup-[0-9-]+\.tar\.xz|/emails/[^/]+\.zip|\.mbox)$'
                   --output /data/doc.sist2 /doc &&
-                  /root/sist2 sqlite-index --search-index /data/search.sist2 /data/doc.sist2
+                  /root/sist2 sqlite-index --search-index /data/search.sist2 /data/doc.sist2 &&
+                  touch /data/.indexed
               securityContext:
                 allowPrivilegeEscalation: false
                 capabilities:
@@ -131,10 +142,12 @@ spec:
         seccompProfile:
           type: RuntimeDefault
       initContainers:
-        # Waits for the first scan to produce the search index.
+        # Waits for the first scan to finish the search index (sqlite-index
+        # creates search.sist2 at its start, and the web holding it open makes
+        # it fail with "database is locked").
         - name: wait-for-index
           image: sist2app/sist2:4.2.3
-          command: ["/bin/sh", "-c", "until [ -s /data/search.sist2 ]; do sleep 30; done"]
+          command: ["/bin/sh", "-c", "until [ -e /data/.indexed ]; do sleep 30; done"]
           securityContext:
             allowPrivilegeEscalation: false
             capabilities:
