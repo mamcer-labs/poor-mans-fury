@@ -1,3 +1,5 @@
+# Installed from grafana/tempo 1.24.4 (Tempo 2.9). The same values work with
+# grafana-community/tempo 3.2.1 (Tempo 3.1): see alloy-tempo-migration.md.
 tempo:
   storage:
     trace:
