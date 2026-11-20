@@ -1,5 +1,8 @@
-# Installed from grafana/tempo 1.24.4 (Tempo 2.9). The same values work with
-# grafana-community/tempo 3.2.1 (Tempo 3.1): see alloy-tempo-migration.md.
+# grafana-community/tempo 3.2.1 (Tempo 3.1.1), single binary, since 20/11/2026.
+# Upgraded in place from grafana/tempo 1.24.4: see alloy-tempo-migration.md.
+#
+#   helm upgrade tempo grafana-community/tempo --version 3.2.1 \
+#     -n fury-monitoring -f observability/tempo-values.yaml
 tempo:
   storage:
     trace:

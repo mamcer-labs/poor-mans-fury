@@ -17,7 +17,7 @@ by the platform.
 | Secrets | HashiCorp Vault (standalone, injected into pods by the Vault Agent) |
 | CI/CD | GitHub Actions on a self-hosted runner, images in GHCR |
 | Metrics & dashboards | Prometheus + Grafana (kube-prometheus-stack) |
-| Logs | Loki + Promtail |
+| Logs | Loki + Grafana Alloy |
 | Traces | Tempo + OpenTelemetry |
 | Catalog & scaffolding | Backstage |
 | Day-to-day operations | `pmf`, a small CLI (below) |

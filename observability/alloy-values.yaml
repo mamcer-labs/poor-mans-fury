@@ -1,5 +1,5 @@
 # Grafana Alloy as the log collector, replacing Promtail (EOL 02/03/2026).
-# NOT APPLIED YET: see alloy-tempo-migration.md for the cutover steps.
+# Applied 20/11/2026 (see alloy-tempo-migration.md).
 #
 #   helm upgrade --install alloy grafana/alloy --version 1.16.0 \
 #     -n fury-monitoring -f observability/alloy-values.yaml
