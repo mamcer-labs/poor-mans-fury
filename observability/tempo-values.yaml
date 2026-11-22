@@ -4,6 +4,9 @@
 #   helm upgrade tempo grafana-community/tempo --version 3.2.1 \
 #     -n fury-monitoring -f observability/tempo-values.yaml
 tempo:
+  resources:
+    requests: {cpu: 50m, memory: 256Mi}
+    limits: {memory: 1Gi}
   storage:
     trace:
       backend: local

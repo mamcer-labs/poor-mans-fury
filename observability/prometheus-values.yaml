@@ -6,8 +6,21 @@ grafana:
     passwordKey: admin-password
   ingress:
     enabled: false
+  resources:
+    requests: {cpu: 50m, memory: 192Mi}
+    limits: {memory: 512Mi}
+  sidecar:                  # dashboards and datasources watchers
+    resources:
+      requests: {cpu: 10m, memory: 96Mi}
+      limits: {memory: 192Mi}
+# Prometheus is Guaranteed QoS (requests == limits, every container in the
+# pod): if the node runs out of memory, the kernel's OOM killer picks almost
+# anything before it. Usage is ~450 MiB; restarts replay the WAL, hence 1.5 GiB.
 prometheus:
   prometheusSpec:
+    resources:
+      requests: {cpu: 500m, memory: 1536Mi}
+      limits: {cpu: 500m, memory: 1536Mi}
     retention: 15d
     storageSpec:
       volumeClaimTemplate:
@@ -17,3 +30,25 @@ prometheus:
               storage: 20Gi
 alertmanager:
   enabled: true
+  alertmanagerSpec:
+    resources:
+      requests: {cpu: 10m, memory: 32Mi}
+      limits: {memory: 128Mi}
+prometheusOperator:
+  resources:
+    requests: {cpu: 10m, memory: 48Mi}
+    limits: {memory: 128Mi}
+  # config-reloader runs inside the Prometheus and Alertmanager pods; it needs
+  # requests == limits too, or the Prometheus pod isn't Guaranteed.
+  prometheusConfigReloader:
+    resources:
+      requests: {cpu: 20m, memory: 48Mi}
+      limits: {cpu: 20m, memory: 48Mi}
+kube-state-metrics:
+  resources:
+    requests: {cpu: 10m, memory: 48Mi}
+    limits: {memory: 128Mi}
+prometheus-node-exporter:
+  resources:
+    requests: {cpu: 10m, memory: 32Mi}
+    limits: {memory: 64Mi}

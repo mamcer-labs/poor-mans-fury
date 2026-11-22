@@ -1,4 +1,11 @@
+# Guaranteed QoS (requests == limits) for the server: if the OOM killer took
+# it, Vault would restart sealed and every new pod would wait for a manual
+# unseal. Usage is ~90 MiB. The StatefulSet uses OnDelete, so this applies on
+# the next restart of vault-0 (a reboot), not on helm upgrade.
 server:
+  resources:
+    requests: {cpu: 250m, memory: 256Mi}
+    limits: {cpu: 250m, memory: 256Mi}
   dev:
     enabled: false
   standalone:
@@ -8,3 +15,12 @@ server:
 ui:
   enabled: true
   serviceType: ClusterIP
+injector:
+  # The chart's required pod anti-affinity + RollingUpdate deadlocks on one
+  # node. Recreate leaves a few seconds without the webhook: a pod created
+  # right then starts without its secrets and has to be restarted.
+  strategy:
+    type: Recreate
+  resources:
+    requests: {cpu: 10m, memory: 32Mi}
+    limits: {memory: 128Mi}

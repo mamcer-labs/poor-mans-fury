@@ -13,13 +13,57 @@ loki:
         index:
           prefix: loki_index_
           period: 24h
+# Guaranteed QoS (requests == limits): if the node runs out of memory, the
+# kernel's OOM killer picks almost anything before Loki. Usage is ~260 MiB,
+# so the limit leaves room for queries.
 singleBinary:
   replicas: 1
   persistence:
     size: 20Gi
+  resources:
+    requests: {cpu: 500m, memory: 768Mi}
+    limits: {cpu: 500m, memory: 768Mi}
 read:
   replicas: 0
 write:
   replicas: 0
 backend:
   replicas: 0
+
+# Memory: rathma has 14 GiB for everything (desktop, Immich, the whole stack).
+# The chart's cache defaults are sized for a production cluster (8 GiB + 1 GiB
+# of memcached, requested up front: 11 GiB of the node's 14 reserved). Here
+# both caches held ~110 MiB.
+# Setting resources replaces the chart's default (1.2x allocatedMemory, and
+# 500m of CPU each, which alone reserved a quarter of the NUC).
+chunksCache:
+  allocatedMemory: 512      # MiB
+  resources:
+    requests: {cpu: 50m, memory: 614Mi}
+    limits: {memory: 614Mi}
+resultsCache:
+  allocatedMemory: 128
+  resources:
+    requests: {cpu: 20m, memory: 154Mi}
+    limits: {memory: 154Mi}
+memcachedExporter:
+  resources:
+    requests: {cpu: 5m, memory: 16Mi}
+    limits: {memory: 64Mi}
+
+sidecar:                    # loki-sc-rules, same pod: must match for Guaranteed
+  resources:
+    requests: {cpu: 50m, memory: 128Mi}
+    limits: {cpu: 50m, memory: 128Mi}
+gateway:
+  # The chart's required pod anti-affinity + RollingUpdate deadlocks on one
+  # node: the new pod can't schedule until the old one is gone.
+  deploymentStrategy:
+    type: Recreate
+  resources:
+    requests: {cpu: 10m, memory: 32Mi}
+    limits: {memory: 128Mi}
+lokiCanary:
+  resources:
+    requests: {cpu: 10m, memory: 32Mi}
+    limits: {memory: 128Mi}
